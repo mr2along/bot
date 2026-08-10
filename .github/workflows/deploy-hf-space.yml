@@ -1,0 +1,49 @@
+name: Deploy HF Space
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'ai-council-v2/hf/**'
+      - '.github/workflows/deploy-hf-space.yml'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout GitHub repo
+        uses: actions/checkout@v4
+
+      - name: Configure Git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Push HF Space
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_SPACE: ${{ secrets.HF_SPACE }}
+        run: |
+          set -e
+          if [ -z "$HF_TOKEN" ] || [ -z "$HF_SPACE" ]; then
+            echo "Missing HF_TOKEN or HF_SPACE repository secrets."
+            exit 1
+          fi
+
+          rm -rf /tmp/hf-space
+          git clone "https://huggingface.co/spaces/${HF_SPACE}" /tmp/hf-space
+
+          rm -rf /tmp/hf-space/* /tmp/hf-space/.[!.]* /tmp/hf-space/..?* 2>/dev/null || true
+          cp -a ai-council-v2/hf/. /tmp/hf-space/
+
+          cd /tmp/hf-space
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No HF Space changes."
+            exit 0
+          fi
+          git commit -m "Deploy from GitHub ${GITHUB_SHA}"
+          git push "https://user:${HF_TOKEN}@huggingface.co/spaces/${HF_SPACE}.git" HEAD:main
