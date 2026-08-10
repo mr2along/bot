@@ -1,0 +1,5 @@
+let ws=null,cfg={enabled:false,wsUrl:"",roomId:"demo",role:"client"};
+chrome.runtime.onMessage.addListener((m,s,reply)=>{if(m.type==="CONFIG"){cfg={...cfg,...m.config};chrome.storage.local.set(cfg);connect();reply({ok:true});return true}if(m.type==="SEND"){if(ws?.readyState===WebSocket.OPEN){ws.send(JSON.stringify(m.data));reply({ok:true})}else reply({ok:false});return true}});
+async function load(){cfg={...cfg,...await chrome.storage.local.get(cfg)}}
+function connect(){if(!cfg.enabled||!cfg.wsUrl)return;try{ws?.close()}catch{}let base=cfg.wsUrl.replace(/\/$/,"");if(!base.endsWith("/ws"))base+="/ws";const u=new URL(base);u.searchParams.set("room_id",cfg.roomId||"demo");u.searchParams.set("role",cfg.role||"client");u.searchParams.set("client_id",crypto.randomUUID());ws=new WebSocket(u.toString());ws.onmessage=e=>{try{const msg=JSON.parse(e.data);chrome.tabs.query({}).then(tabs=>tabs.forEach(t=>chrome.tabs.sendMessage(t.id,{type:"HF",msg}).catch(()=>{})))}catch{}};ws.onclose=()=>setTimeout(connect,3000)}
+load().then(connect);
