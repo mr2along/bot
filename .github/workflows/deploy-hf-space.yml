@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'ai-council-v2/hf/**'
+      - 'shopee-video-downloader/backend/**'
       - '.github/workflows/deploy-hf-space.yml'
   workflow_dispatch:
 
@@ -15,15 +16,27 @@ jobs:
       - name: Checkout GitHub repo
         uses: actions/checkout@v4
 
-      - name: Configure Git
+      - name: Select deployment source
+        id: source
+        env:
+          HF_SPACE: ${{ secrets.HF_SPACE }}
         run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          set -e
+          if [ -z "$HF_SPACE" ]; then
+            echo "Missing HF_SPACE repository secret."
+            exit 1
+          fi
+          if [ -f shopee-video-downloader/backend/Dockerfile ]; then
+            echo "dir=shopee-video-downloader/backend" >> "$GITHUB_OUTPUT"
+          else
+            echo "dir=ai-council-v2/hf" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Push HF Space
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
           HF_SPACE: ${{ secrets.HF_SPACE }}
+          SOURCE_DIR: ${{ steps.source.outputs.dir }}
         run: |
           set -e
           if [ -z "$HF_TOKEN" ] || [ -z "$HF_SPACE" ]; then
@@ -33,9 +46,8 @@ jobs:
 
           rm -rf /tmp/hf-space
           git clone "https://huggingface.co/spaces/${HF_SPACE}" /tmp/hf-space
-
           rm -rf /tmp/hf-space/* /tmp/hf-space/.[!.]* /tmp/hf-space/..?* 2>/dev/null || true
-          cp -a ai-council-v2/hf/. /tmp/hf-space/
+          cp -a "$SOURCE_DIR"/. /tmp/hf-space/
 
           cd /tmp/hf-space
           git config user.name "github-actions[bot]"
